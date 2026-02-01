@@ -1,0 +1,219 @@
+//
+//  AddOrUpdateBudget.swift
+//  MisGastos
+//
+//  Created by Noel Obando Espinoza on 1/29/26.
+//
+
+import SwiftUI
+import SwiftData
+
+struct AddOrUpdateBudget: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dissmiss
+    var budget: Budget?
+    
+    @Query private var categories: [Category]
+    @State private var id: UUID = UUID()
+    @State private var name = String();
+    @State private var amount : Double = 0.0;
+    @State private var period: BudgetPeriod = .monthly;
+    @State private var start: Date = Date()
+    @State private var active: Bool = false;
+    @State private var category: Category? = nil;
+    @State private var showDatePicker = false;
+    
+    @State private var showAlert = false;
+    @State private var alertMessage = String();
+    
+    var endDate: Date {
+        return period.calculateEndDate(from: start)
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading){
+            CustomSection("Informacion General"){
+                HStack{
+                    Text("Nombre")
+                    Spacer()
+                    TextField(String(),text: $name)
+                        .submitLabel(.done)
+                }.padding()
+                SectionSeparator()
+                HStack{
+                    Text("Monto: ")
+                    Spacer()
+                    TextField(String(), value: $amount, format: .number)
+                        .keyboardType(.numberPad)
+                        .submitLabel(.done)
+                }.padding()
+                SectionSeparator()
+                HStack{
+                    Text("Categoria")
+                    Spacer()
+                    Menu{
+                        ForEach(categories){ cat in
+                            Button(cat.name, systemImage: cat.icon){
+                                withAnimation{
+                                    self.category = cat
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack{
+                            Text(category?.name ?? "Ninguna")
+                            Image(systemName: category?.icon ?? "shippingbox")
+                        }.padding()
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color(.systemGray6).opacity(0.2))
+                    )
+                }.padding()
+            }
+            CustomSection("Duracion"){
+                HStack{
+                    Text("Fecha de Inicio")
+                    Spacer()
+                    Button{
+                        withAnimation{
+                            showDatePicker.toggle()
+                        }
+                    }label: {
+                        HStack{
+                            Text(formatDate(start))
+                            Image(systemName: "calendar")
+                        }.padding()
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color(.systemGray6).opacity(0.2))
+                    )
+                }
+                SectionSeparator()
+                HStack{
+                    Text("Periodo")
+                    Spacer()
+                    Menu{
+                        ForEach(BudgetPeriod.allCases){ periodo in
+                            Button(periodo.name){
+                                period = periodo
+                            }
+                        }
+                    } label: {
+                        HStack{
+                            Text(period.name)
+                            Image(systemName: "calendar")
+                        }.padding()
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color(.systemGray6).opacity(0.2))
+                    )
+                }
+                SectionSeparator()
+                HStack{
+                    Text("Fecha Fin")
+                    Spacer()
+                    Text(formatDate(endDate))
+                }
+            }
+            .sheet(isPresented: $showDatePicker){
+                VStack(alignment: .center, spacing: 20 ){
+                    Text("Seleccione una fecha").foregroundStyle(.black)
+                    DatePicker("Fecha", selection: $start, displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                        .labelsHidden()
+                    Button("Aceptar"){
+                        showDatePicker.toggle()
+                    }.buttonStyle(.borderedProminent)
+                }.presentationDetents(
+                    [.height(500)]
+                ).padding()
+            }
+            Button("Guardar", systemImage: "tray.and.arrow.down.fill") {
+                addUpdateBudget()
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color.bgColorLigth)
+            .foregroundColor(.white)
+            .cornerRadius(8)
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Listo") {
+                    hideKeyboard()
+                }
+            }
+        }
+        .toolbarColorScheme(.dark, for: .navigationBar)
+        .alert("Ha ocurrido un error", isPresented: $showAlert){
+            Button("Aceptar", role: .confirm){}
+        } message: {
+            Text(alertMessage)
+        }.toolbarColorScheme(.dark, for: .navigationBar)
+        .globalBackground()
+        .foregroundStyle(.white)
+        .onAppear{
+            if let bud = budget {
+                id = bud.id;
+                name = bud.name;
+                amount = bud.amount
+                period = bud.period
+                start = bud.startDate
+                category = bud.category
+            }
+        }
+    }
+    func addUpdateBudget(){
+        do{
+            alertMessage = String()
+            if name.isEmpty {
+                throw AppError.missingAmount
+            }
+            if amount <= 0 {
+                throw AppError.missingAmount
+            }
+            if category == nil {
+                throw AppError.missingCategory
+            }
+            if let bud = budget{
+                bud.name = name
+                bud.amount = amount
+                bud.startDate = start
+                bud.endDate = endDate
+                bud.period = period
+                bud.category = category!
+            }else {
+                let newBudget = Budget(
+                    name: name,
+                    amount: amount,
+                    period: period,
+                    category: category!
+                )
+                modelContext.insert(newBudget)
+            }
+            try modelContext.save()
+            dissmiss()
+        } catch let error as AppError {
+            alertMessage = error.description;
+        } catch {
+            alertMessage = "Error no identificado."
+        }
+        if !alertMessage.isEmpty {
+            showAlert.toggle()
+        }
+    }
+}
+
+#Preview {
+    AddOrUpdateBudget().modelContainer(for: [Expense.self, Category.self], inMemory: true){ result in
+        switch result {
+            case .success( let container): setupDefaultData(container: container)
+            case .failure(let error): print(error.localizedDescription)
+        }
+    }
+}
+

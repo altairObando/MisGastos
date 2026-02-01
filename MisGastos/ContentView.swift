@@ -7,60 +7,96 @@
 
 import SwiftUI
 import SwiftData
+import Combine
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @StateObject private var viewModel: ExpenseDataManager
+    @StateObject private var tabSelection = TabSelection()
+    
+    @State private var currentTab: CustomTabs = .Home;
+    @State private var demoSearch: String = String();
+    
+    init() {
+        let container = try! ModelContainer(for: Expense.self, Category.self)
+        _viewModel = StateObject(wrappedValue: ExpenseDataManager(context: container.mainContext))
+        let appearance = UITabBarAppearance()
+            appearance.configureWithTransparentBackground()
+            appearance.backgroundColor = .clear
 
+            // 👇 Cambiar color del ítem seleccionado y no seleccionado
+            UITabBar.appearance().tintColor = UIColor.systemBlue       // Activo
+            UITabBar.appearance().unselectedItemTintColor = UIColor.gray // Inactivo
+
+            // Aplicar la apariencia
+            UITabBar.appearance().standardAppearance = appearance
+            UITabBar.appearance().scrollEdgeAppearance = appearance
+    }
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+        TabView(selection: $tabSelection.currentTab){
+            Tab("Inicio", systemImage: "house", value: .Home){
+                HomeView()
+            }
+            Tab("Presupuesto", systemImage: "wallet.bifold", value: .Budgets){
+                Budgets()
+            }
+            Tab("Nuevo", systemImage: "plus", value: .NewExpense){
+                AddOrUpdateExpense()
+            }
+            Tab("Ajustes", systemImage:"gear", value: .Config){
+                NavigationStack{
+                    VStack{
+                        List{
+                            Text("Datos Personales")
+                            Text("Categorias")
+                            Text("Cuentas")
+                            Text("Sync")
+                        }
                     }
-                }
-                .onDelete(perform: deleteItems)
+                }.globalBackground()
             }
-#if os(macOS)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-#endif
-            .toolbar {
-#if os(iOS)
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-#endif
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
+            Tab("Historial", systemImage:"magnifyingglass",value: .History, role: .search){
+                History()
             }
-        } detail: {
-            Text("Select an item")
-        }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
-            }
-        }
+        }.globalBackground()
+        .environmentObject(tabSelection)
+        .environmentObject(viewModel)
     }
 }
 
 #Preview {
-    ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+    ContentView().modelContainer(for: Expense.self, inMemory: false)
+}
+
+enum CustomTabs: String, CaseIterable, Hashable {
+     case Home
+     case Budgets
+     case NewExpense
+     case Config
+     case History
+}
+
+class TabSelection: ObservableObject {
+    @Published var currentTab: CustomTabs = .Home
+}
+
+
+struct SearchView: View {
+    @State var searchText: String = ""
+    
+    
+    var body: some View {
+        NavigationStack {
+            VStack {
+                ContentUnavailableView("Search Tab", systemImage: "magnifyingglass")
+            }
+            .navigationTitle("Search")
+        }
+        .searchable(
+            text: $searchText,
+            placement: .sidebar,
+            prompt: "type here to search"
+        ).globalBackground()
+            .foregroundStyle(.white)
+    }
 }
