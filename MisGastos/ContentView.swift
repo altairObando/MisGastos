@@ -8,59 +8,112 @@
 import SwiftUI
 import SwiftData
 import Combine
+import LocalAuthentication
+
+class AuthViewModel: ObservableObject {
+    @Published var isUnlocked = false
+    @Published var errorMessage: String? = nil
+
+    func authenticate() {
+        let context = LAContext()
+        var error: NSError?
+
+        // Verifica si la biometría está disponible
+        if context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) {
+            let reason = "Autentícate para acceder a MisGastos"
+
+            context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { success, authenticationError in
+                DispatchQueue.main.async {
+                    if success {
+                        self.isUnlocked = true
+                    } else {
+                        self.errorMessage = authenticationError?.localizedDescription ?? "Falló la autenticación"
+                        self.isUnlocked = false
+                    }
+                }
+            }
+        } else {
+            // Si no hay Face ID/Touch ID, desbloquea para no trabar al usuario
+            DispatchQueue.main.async {
+                self.errorMessage = "Biometría no disponible"
+                self.isUnlocked = true
+            }
+        }
+    }
+}
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @StateObject private var viewModel: ExpenseDataManager
     @StateObject private var tabSelection = TabSelection()
-    
-    @State private var currentTab: CustomTabs = .Home;
-    @State private var demoSearch: String = String();
-    
+
+    @AppStorage("useFaceID") private var useFaceID: Bool = false
+    @StateObject private var authVM = AuthViewModel()
+
+    @State private var currentTab: CustomTabs = .Home
+    @State private var demoSearch: String = String()
+
     init() {
         let container = try! ModelContainer(for: Expense.self, Category.self)
         _viewModel = StateObject(wrappedValue: ExpenseDataManager(context: container.mainContext))
-        let appearance = UITabBarAppearance()
-            appearance.configureWithTransparentBackground()
-            appearance.backgroundColor = .clear
-
-            // 👇 Cambiar color del ítem seleccionado y no seleccionado
-            UITabBar.appearance().tintColor = UIColor.systemBlue       // Activo
-            UITabBar.appearance().unselectedItemTintColor = UIColor.gray // Inactivo
-
-            // Aplicar la apariencia
-            UITabBar.appearance().standardAppearance = appearance
-            UITabBar.appearance().scrollEdgeAppearance = appearance
     }
+
     var body: some View {
-        TabView(selection: $tabSelection.currentTab){
-            Tab("Inicio", systemImage: "house", value: .Home){
-                HomeView()
-            }
-            Tab("Presupuesto", systemImage: "wallet.bifold", value: .Budgets){
-                Budgets()
-            }
-            Tab("Nuevo", systemImage: "plus", value: .NewExpense){
-                AddOrUpdateExpense()
-            }
-            Tab("Ajustes", systemImage:"gear", value: .Config){
-                NavigationStack{
-                    VStack{
-                        List{
-                            Text("Datos Personales")
-                            Text("Categorias")
-                            Text("Cuentas")
-                            Text("Sync")
-                        }
+        ZStack {
+            if useFaceID && !authVM.isUnlocked {
+                // Pantalla de bloqueo biométrico
+                VStack {
+                    Image(systemName: "faceid")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 60, height: 60)
+                        .foregroundColor(.gray)
+                        .padding()
+                    Text("Autenticación requerida")
+                        .font(.title2)
+                        .padding(.bottom, 8)
+                    if let error = authVM.errorMessage {
+                        Text(error)
+                            .foregroundColor(.red)
+                            .font(.footnote)
+                            .multilineTextAlignment(.center)
+                            .padding(.vertical)
                     }
-                }.globalBackground()
+                    Button("Intentar de nuevo") {
+                        authVM.authenticate()
+                    }
+                    .padding()
+                    .background(.ultraThinMaterial, in: Capsule())
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.systemBackground).opacity(0.9))
+                .onAppear {
+                    authVM.authenticate()
+                }
+            } else {
+                // App normal
+                TabView(selection: $tabSelection.currentTab){
+                    Tab("Inicio", systemImage: "house", value: .Home){
+                        HomeView()
+                    }
+                    Tab("Presupuesto", systemImage: "wallet.bifold", value: .Budgets){
+                        Budgets()
+                    }
+                    Tab("Nuevo", systemImage: "plus", value: .NewExpense){
+                        AddOrUpdateExpense()
+                    }
+                    Tab("Ajustes", systemImage:"gear", value: .Config){
+                        ConfigView()
+                    }
+                    Tab("Historial", systemImage:"magnifyingglass",value: .History, role: .search){
+                        History()
+                    }
+                }
+                .globalBackground()
+                .environmentObject(tabSelection)
+                .environmentObject(viewModel)
             }
-            Tab("Historial", systemImage:"magnifyingglass",value: .History, role: .search){
-                History()
-            }
-        }.globalBackground()
-        .environmentObject(tabSelection)
-        .environmentObject(viewModel)
+        }
     }
 }
 
@@ -78,25 +131,4 @@ enum CustomTabs: String, CaseIterable, Hashable {
 
 class TabSelection: ObservableObject {
     @Published var currentTab: CustomTabs = .Home
-}
-
-
-struct SearchView: View {
-    @State var searchText: String = ""
-    
-    
-    var body: some View {
-        NavigationStack {
-            VStack {
-                ContentUnavailableView("Search Tab", systemImage: "magnifyingglass")
-            }
-            .navigationTitle("Search")
-        }
-        .searchable(
-            text: $searchText,
-            placement: .sidebar,
-            prompt: "type here to search"
-        ).globalBackground()
-            .foregroundStyle(.white)
-    }
 }

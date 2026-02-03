@@ -10,9 +10,8 @@ import SwiftData
 
 struct Budgets: View {
     @Environment(\.modelContext) private var modelContext
-    // Fetch all active budgets only
     @Query(filter: #Predicate<Budget> { $0.isActive }) private var allActiveBudgets: [Budget]
-
+    @AppStorage("currencyCode") private var currencyCode: String = "NIO"
     @State private var showNewItem = false;
     @State private var showOptions = true;
     @State private var selected: Budget? = nil;
@@ -24,8 +23,6 @@ struct Budgets: View {
         (0.9, .orange, "Superando presupuesto"),
         (1.0, .red, "Presupuesto excedido")
     ]
-
-    // Filter for current period in Swift code (adjust as needed for your period logic)
     var budgets: [Budget] {
         let today = Date()
         return allActiveBudgets.filter { b in
@@ -61,13 +58,13 @@ struct Budgets: View {
                                 .font(.title)
                                 .foregroundColor(.white)
                             HStack{
-                                Text(totalExpense,format: .currency(code: "NIO"))
+                                Text(totalExpense,format: .currency(code: currencyCode))
                                     .font(.system(size: 25, weight: .bold))
                                     .foregroundStyle(Color.white)
                                 Text("/")
                                     .font(.system(size: 20, weight: .bold))
                                     .foregroundStyle(Color.gray)
-                                Text(totalBudget, format: .currency(code: "NIO"))
+                                Text(totalBudget, format: .currency(code: currencyCode))
                                     .font(.system(size: 20, weight: .bold))
                                     .foregroundStyle(Color.gray)
                             }

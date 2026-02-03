@@ -15,6 +15,7 @@ struct History: View {
     @State private var selectedPeriod: TimePeriod = .thisWeek
     @State private var categories: [Category] = []
     @State private var category: Category?
+    @AppStorage("currencyCode") private var currencyCode: String = "NIO"
     var body: some View {
         NavigationStack{
             VStack{
@@ -82,10 +83,9 @@ struct History: View {
                                         .font(.footnote)
                                 }
                                 Spacer()
-                                Text(expense.amount, format: .currency(code: "NIO"))
+                                Text(expense.amount, format: .currency(code: currencyCode))
                                     .foregroundStyle( expense.category.isIncome ? .green : .red  )
                             }
-                            //.foregroundStyle(.black)
                             .listRowBackground(Color.gray.opacity(0.3))
                         }
                     }

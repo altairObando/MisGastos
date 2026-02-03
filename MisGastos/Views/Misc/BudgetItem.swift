@@ -8,6 +8,7 @@ import SwiftUI
 
 struct BudgetItem: View {
     @State private var showOptions : Bool = false;
+    @AppStorage("currencyCode") private var currencyCode: String = "NIO"
     var bud: Budget
     var fColor: Color
     var thresholds: [(threshold: Double, color: Color, label: String)];
@@ -33,13 +34,13 @@ struct BudgetItem: View {
                             .font(.title3.bold())
                         HStack{
                             Text("Quedan")
-                            Text(bud.available, format: .currency(code: "NIO"))
+                            Text(bud.available, format: .currency(code: currencyCode))
                         }.font(.footnote)
                     }
                     Spacer()
                     VStack(alignment: .trailing){
-                        Text(bud.category.totalSpent,format: .currency(code: "NIO")).font(.title3.bold())
-                        Text(bud.amount,format: .currency(code: "NIO")).font(.footnote)
+                        Text(bud.category.totalSpent,format: .currency(code: currencyCode)).font(.title3.bold())
+                        Text(bud.amount,format: .currency(code: currencyCode)).font(.footnote)
                     }
                 }
                 CustomProgressBar(

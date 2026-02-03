@@ -10,6 +10,7 @@ import SwiftData
 struct SummaryCard: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var currentMonthExpenses: [Expense]
+    @AppStorage("currencyCode") private var currencyCode: String = "NIO"
     var incomes: Double {
             currentMonthExpenses
             .filter { $0.category.isIncome }
@@ -51,7 +52,7 @@ struct SummaryCard: View {
                     ChipView(text:"+12 %")
                 }
                 
-                Text(balance, format: .currency(code: "NIO"))
+                Text(balance, format: .currency(code: currencyCode))
                     .font(.system(size: 40, weight: .bold))
                     .foregroundColor(.gray)
                     .lineLimit(3)
@@ -65,7 +66,7 @@ struct SummaryCard: View {
                             Text("INGRESO MENSUAL")
                                 .font(.footnote.bold())
                                 .foregroundColor(.white)
-                            Text(incomes, format: .currency(code: "NIO"))
+                            Text(incomes, format: .currency(code: currencyCode))
                                 .font(.system(size: 15, weight: .bold))
                                 .foregroundStyle(Color.green)
                         }.padding()
@@ -79,7 +80,7 @@ struct SummaryCard: View {
                             Text("GASTO MENSUAL")
                                 .font(.footnote.bold())
                                 .foregroundColor(.white)
-                            Text(expenses, format: .currency(code: "NIO"))
+                            Text(expenses, format: .currency(code: currencyCode))
                                 .font(.system(size: 15, weight: .bold))
                                 .foregroundStyle(Color.red)
                         }.padding()
