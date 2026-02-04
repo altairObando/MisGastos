@@ -9,8 +9,7 @@ import SwiftUI
 import SwiftData
 
 struct CategoriesView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var categories: [Category]
+    @State private var categories: [Category] = []
     @State private var showError: Bool = false
     @State private var selected: Category?
     @State private var moveToUpdate: Bool = false
@@ -32,6 +31,7 @@ struct CategoriesView: View {
         .onAppear{
             selected = nil;
             moveToUpdate = false;
+            fetchCategories()
         }
         .sheet(isPresented: $showError){
             VStack(alignment: .leading, spacing: 10){
@@ -68,16 +68,19 @@ struct CategoriesView: View {
         moveToUpdate = true;
     }
     func onDelete(_ category: Category){
-        withAnimation {
-            modelContext.delete(category)
-            do{
-                try modelContext.save()
-            }catch{
-                showError = true;
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3){
-                    showError = false;
+        Task{
+            let removed = await CategoryHelper.shared.delete(category.id)
+            if removed {
+                withAnimation {
+                    categories = categories.filter { cat in cat.id != category.id }
                 }
             }
+        }
+    }
+    func fetchCategories(){
+        Task {
+            let cats = await CategoryHelper.shared.getAll()
+            categories = cats.filter{ cat in cat.isActive }
         }
     }
 }
@@ -88,10 +91,5 @@ struct CategoriesView: View {
             .navigationDestination(isPresented: .constant(true)){
                 CategoriesView()
             }
-    }.modelContainer(for: [Expense.self, Category.self], inMemory: true){ result in
-        switch result {
-            case .success( let container): setupDefaultData(container: container)
-            case .failure(let error): print(error.localizedDescription)
-        }
     }
 }

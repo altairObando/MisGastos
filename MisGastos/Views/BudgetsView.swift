@@ -8,10 +8,10 @@
 import SwiftUI
 import SwiftData
 
-struct Budgets: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query(filter: #Predicate<Budget> { $0.isActive }) private var allActiveBudgets: [Budget]
+struct BudgetsView: View {
     @AppStorage("currencyCode") private var currencyCode: String = "NIO"
+    
+    @State private var allActiveBudgets: [Budget] = [];
     @State private var showNewItem = false;
     @State private var showOptions = true;
     @State private var selected: Budget? = nil;
@@ -120,7 +120,8 @@ struct Budgets: View {
             .onAppear{
                 selected = nil
             }
-        }.toolbarColorScheme(.dark, for: .navigationBar)
+        }
+        .toolbarColorScheme(.dark, for: .navigationBar)
     }
     func getCurrentColor( _ progress: Double) -> Color {
         for (threshold, color, _) in thresholds.sorted(by: { $0.threshold < $1.threshold }) {
@@ -139,7 +140,8 @@ struct Budgets: View {
                 selected = budget;
                 showNewItem.toggle()
             case .delete:
-                modelContext.delete(budget);
+                print("DELEEETE")
+                //modelContext.delete(budget);
             case .cancel:
                 print("Action Cancelled")
         }
@@ -147,6 +149,6 @@ struct Budgets: View {
 }
 
 #Preview {
-    Budgets()
+    BudgetsView()
 }
 

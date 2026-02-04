@@ -26,10 +26,4 @@ struct HomeView: View {
 
 #Preview {
     HomeView()
-    .modelContainer(for: [Expense.self, Category.self], inMemory: true){ result in
-        switch result {
-            case .success( let container): setupDefaultData(container: container)
-            case .failure(let error): print(error.localizedDescription)
-        }
-    }
 }

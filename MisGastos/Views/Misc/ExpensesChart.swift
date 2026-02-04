@@ -10,7 +10,6 @@ import SwiftData
 import Charts
 
 struct ExpensesChart: View {
-    @Environment(\.modelContext) private var modelContext
     @State private var summary : [CategorySummary] = [];
     
     var body: some View {
@@ -56,16 +55,15 @@ struct ExpensesChart: View {
         }.frame(maxWidth: .infinity)
         .frame(height: 400)
         .padding(.horizontal)
-        .onAppear(perform: GetCategoriesSummary )
+        .onAppear{
+            Task{
+                await GetCategoriesSummary()
+            }
+        }
     }
     
-    func GetCategoriesSummary(){
-        summary = modelContext
-            .categorySummariesForMonth()
-            .map{ cat in
-                cat.color = getRandomColor()
-                return cat
-            }
+    func GetCategoriesSummary() async -> Void {
+        summary = await CategoryHelper.shared.categorySummaries()
     }
     func getRandomColor() -> Color {
         return Color(
@@ -79,11 +77,5 @@ struct ExpensesChart: View {
 #Preview {
     ExpensesChart()
         .globalBackground()
-        .modelContainer(for: [Expense.self, Category.self], inMemory: false){ result in
-            switch result {
-                case .success( let container): setupDefaultData(container: container)
-                case .failure(let error): print(error.localizedDescription)
-            }
-        }
 }
 

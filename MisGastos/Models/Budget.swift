@@ -6,10 +6,7 @@
 //
 
 import Foundation
-import SwiftData
-
-@Model
-class Budget {
+class Budget: Codable, Identifiable, Equatable {
     var id: UUID
     var name: String
     var amount: Double
@@ -17,8 +14,8 @@ class Budget {
     var startDate: Date
     var endDate: Date
     var isActive: Bool
-    
-    @Relationship(deleteRule: .nullify) var category: Category
+    var category: Category
+    var userId: UUID?
     
     init(name: String, amount: Double, period: BudgetPeriod, category: Category) {
         self.id = UUID()
@@ -30,18 +27,15 @@ class Budget {
         self.isActive = true
         self.category = category
     }
-    var totalSpent: Double{
-        return category.expenses.filter{ exp in
-            exp.date >= self.startDate && exp.date <= self.endDate
-        }.reduce(0){
-            $0 + $1.amount
-        }
-    }
-    var consumedPercentage: Double {
-        return self.totalSpent/self.amount;
-    }
-    var available: Double {
-        return self.amount - self.totalSpent
+    static func == (lhs: Budget, rhs: Budget) -> Bool {
+        lhs.id == rhs.id &&
+        lhs.name == rhs.name &&
+        lhs.amount == rhs.amount &&
+        lhs.period == rhs.period &&
+        lhs.startDate == rhs.startDate &&
+        lhs.endDate == rhs.endDate &&
+        lhs.isActive == rhs.isActive &&
+        lhs.category == rhs.category
     }
 }
 
@@ -80,3 +74,4 @@ enum BudgetPeriod: String, CaseIterable, Codable, Identifiable {
         }
     }
 }
+

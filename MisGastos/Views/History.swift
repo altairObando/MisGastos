@@ -9,7 +9,6 @@ import SwiftUI
 import SwiftData
 
 struct History: View {
-    @Environment(\.modelContext) private var modelContext
     @State private var searchText: String = String();
     @State private var expenses: [TimeExpense] = [];
     @State private var selectedPeriod: TimePeriod = .thisWeek
@@ -117,110 +116,34 @@ struct History: View {
         ).toolbarColorScheme(.dark, for: .navigationBar)
     }
     func filterExpenses(){
-        let range = selectedPeriod.dateRange;
-        let startDate = range.start;
-        let endDate   = range.end;
-        let descriptor = FetchDescriptor<Expense>(
-            predicate: #Predicate { expense in
-                expense.date >= startDate.startOfDay &&
-                expense.date <= endDate.endOfDay
-            },
-            sortBy: [SortDescriptor(\.date, order: .reverse)]
-        )
-        
-        do{
-            var tempExpenses = try modelContext.fetch(descriptor);
-            if let cat = category {
-                tempExpenses = tempExpenses.filter{ exp in
-                    exp.category == cat
-                }
+        Task {
+            let range = selectedPeriod.dateRange;
+            let startDate = range.start.startOfDay;
+            let endDate   = range.end.endOfDay;
+            do{
+                let tempExpenses = await ExpenseHelper.shared.filterExpenses(
+                    start: startDate,
+                    end: endDate,
+                    text: searchText,
+                    catId: category?.id?.uuidString
+                )
+                expenses = tempExpenses
+            } catch{
+                print("Error getting expenses")
             }
-            if !searchText.isEmpty {
-                tempExpenses = tempExpenses.filter { expense in
-                    expense.title.uppercased().contains( searchText.uppercased()) ||
-                    expense.category.name.uppercased().contains(searchText.uppercased())
-                }
-            }
-            let groupedDict = Dictionary(grouping: tempExpenses) { expense -> Date in
-                expense.date.startOfDay
-            }
-            let catExpenses = groupedDict.map { categoryName, expenses in
-                TimeExpense(date: categoryName, expenses: expenses)
-            }
-            expenses = catExpenses.sorted { $0.date > $1.date };
-            
-            if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" {
-                categories = [
-                    Category(name: "Comida", icon: "fork.knife"),
-                    Category(name: "Electronica", icon: "bolt"),
-                    Category(name: "Ropa", icon:"hanger"),
-                    Category(name: "Salud", icon:"heart"),
-                    Category(name: "Salario", icon:"wallet.bifold", isIncome: true),
-                    Category(name: "Extras", icon: "wand.and.stars", isIncome: true),
-                    Category(name: "Ventas", icon:"storefront")
-                ]
-                var tempExpenses: [Expense] = [];
-                for category in categories {
-                    tempExpenses.append(contentsOf: [
-                        Expense(amount: 100, title: "Supermercado", date: Date(), category: category),
-                        Expense(amount: 50, title: "Gasolina", date: Date().addingTimeInterval(-86400), category: category),
-                        Expense(amount: 200, title: "Restaurante", date: Date().addingTimeInterval(-172800), category: category)
-                    ])
-                }
-                if let cat = category {
-                    tempExpenses = tempExpenses.filter{ exp in
-                        exp.category.name == cat.name
-                    }
-                }
-                if !searchText.isEmpty {
-                    tempExpenses = tempExpenses.filter { expense in
-                        expense.title.uppercased().contains( searchText.uppercased()) ||
-                        expense.category.name.uppercased().contains(searchText.uppercased())
-                    }
-                }
-                let groupedDict = Dictionary(grouping: tempExpenses) { expense -> Date in
-                    expense.date.startOfDay
-                }
-                let catExpenses = groupedDict.map { categoryName, expenses in
-                    TimeExpense(date: categoryName, expenses: expenses)
-                }
-                expenses = catExpenses.sorted { $0.date > $1.date }
-            }
-        }catch{
-            print("Error getting expenses")
         }
     }
     func loadCategories(){
-        if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" {
-            categories = [
-                Category(name: "Comida"),
-                Category(name: "Electronica"),
-                Category(name: "Ropa"),
-                Category(name: "Salud"),
-                Category(name: "Salario", isIncome: true),
-                Category(name: "Extras", isIncome: true),
-                Category(name: "Ventas")
-            ]
-        } else {
-            categories = try! modelContext.fetch(FetchDescriptor<Category>())
+        Task{
+            let result = await CategoryHelper.shared.getAll();
+            categories = result.filter{ cat in
+                cat.isActive
+            }
         }
     }
 }
-
-struct TimeExpense: Identifiable {
-    let id = UUID()
-    var date: Date
-    var expenses: [Expense]
-}
-
 #Preview {
     History()
-        .modelContainer(for: [Expense.self, Category.self], inMemory: true){ result in
-            switch result {
-                case .success( let container): setupDefaultData(container: container)
-                case .failure(let error): print(error.localizedDescription)
-            }
-        }
 }
 
 extension Date {

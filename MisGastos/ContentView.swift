@@ -43,8 +43,6 @@ class AuthViewModel: ObservableObject {
 }
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @StateObject private var viewModel: ExpenseDataManager
     @StateObject private var tabSelection = TabSelection()
 
     @AppStorage("useFaceID") private var useFaceID: Bool = false
@@ -53,10 +51,7 @@ struct ContentView: View {
     @State private var currentTab: CustomTabs = .Home
     @State private var demoSearch: String = String()
 
-    init() {
-        let container = try! ModelContainer(for: Expense.self, Category.self)
-        _viewModel = StateObject(wrappedValue: ExpenseDataManager(context: container.mainContext))
-    }
+    
 
     var body: some View {
         ZStack {
@@ -111,14 +106,13 @@ struct ContentView: View {
                 }
                 .globalBackground()
                 .environmentObject(tabSelection)
-                .environmentObject(viewModel)
             }
         }
     }
 }
 
 #Preview {
-    ContentView().modelContainer(for: Expense.self, inMemory: false)
+    ContentView()
 }
 
 enum CustomTabs: String, CaseIterable, Hashable {

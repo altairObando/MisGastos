@@ -8,35 +8,15 @@
 import SwiftUI
 import SwiftData
 struct SummaryCard: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var currentMonthExpenses: [Expense]
+    @State private var currentMonthExpenses: [Expense] = [];
+    @State private var incomes: Double = 0.0
+    @State private var expenses: Double = 0.0;
     @AppStorage("currencyCode") private var currencyCode: String = "NIO"
-    var incomes: Double {
-            currentMonthExpenses
-            .filter { $0.category.isIncome }
-                .reduce(0) { $0 + $1.amount }
-        }
-    var expenses: Double {
-            currentMonthExpenses
-                .filter { !$0.category.isIncome }
-                .reduce(0) { $0 + $1.amount }
-        }
+    
     var balance: Double {
         incomes - expenses
     }
-    init() {
-        let calendar = Calendar.current
-        let now = Date()
-        let startOfMonth = calendar.dateInterval(of: .month, for: now)?.start ?? now
-        let endOfMonth = calendar.dateInterval(of: .month, for: now)?.end ?? now        
-        _currentMonthExpenses = Query(
-            filter: #Predicate { expense in
-                expense.date >= startOfMonth && expense.date <= endOfMonth
-            },
-            sort: \.date,
-            order: .reverse
-        )
-    }
+    
     var body: some View {
         ZStack(alignment: .leading) {
             RoundedRectangle(cornerRadius: 16)
@@ -94,17 +74,25 @@ struct SummaryCard: View {
         .padding(.horizontal)
     }
    
+    func fetchExpenses() async -> Void{
+        let result = await ExpenseHelper.shared.currentMonthExpenses()
+        var inc = 0.0, exp = 0.0;
+        result.forEach{ expense in
+            if let cat = expense.category, cat.isIncome {
+                inc += expense.amount
+            } else {
+                exp += expense.amount
+            }
+        }
+        self.currentMonthExpenses = result;
+        self.incomes = inc;
+        self.expenses = exp;
+    }
 }
 
 #Preview {
     SummaryCard()
         .globalBackground()
-        .modelContainer(for: [Expense.self, Category.self], inMemory: false){ result in
-            switch result {
-                case .success( let container): setupDefaultData(container: container)
-                case .failure(let error): print(error.localizedDescription)
-            }
-        }
 }
 
 
