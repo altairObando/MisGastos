@@ -18,6 +18,7 @@ class SupabaseClient {
     private init() {
         self.supabaseURL = URL(string: "https://ezrgvioazqzmcnejdcax.supabase.co")!
         self.supabaseKey = "sb_publishable_cUfI40t4tszyWkXmPjTntQ_jIRMkcw1"
-        self.client = Supabase.SupabaseClient(supabaseURL: supabaseURL, supabaseKey: supabaseKey)
+        let options = SupabaseClientOptions(auth: .init(emitLocalSessionAsInitialSession: true))
+        self.client = Supabase.SupabaseClient(supabaseURL: supabaseURL, supabaseKey: supabaseKey, options: options)
     }
 }

@@ -44,15 +44,12 @@ class AuthViewModel: ObservableObject {
 
 struct ContentView: View {
     @StateObject private var tabSelection = TabSelection()
-
+    @StateObject var authManager = AuthManager()
     @AppStorage("useFaceID") private var useFaceID: Bool = false
     @StateObject private var authVM = AuthViewModel()
 
     @State private var currentTab: CustomTabs = .Home
     @State private var demoSearch: String = String()
-
-    
-
     var body: some View {
         ZStack {
             if useFaceID && !authVM.isUnlocked {
@@ -86,26 +83,29 @@ struct ContentView: View {
                     authVM.authenticate()
                 }
             } else {
-                // App normal
-                TabView(selection: $tabSelection.currentTab){
-                    Tab("Inicio", systemImage: "house", value: .Home){
-                        HomeView()
+                if authManager.session != nil {
+                    TabView(selection: $tabSelection.currentTab){
+                        Tab("Inicio", systemImage: "house", value: .Home){
+                            HomeView()
+                        }
+                        Tab("Presupuesto", systemImage: "wallet.bifold", value: .Budgets){
+                            BudgetsView()
+                        }
+                        Tab("Nuevo", systemImage: "plus", value: .NewExpense){
+                            AddOrUpdateExpense()
+                        }
+                        Tab("Ajustes", systemImage:"gear", value: .Config){
+                            ConfigView()
+                        }
+                        Tab("Historial", systemImage:"magnifyingglass",value: .History, role: .search){
+                            History()
+                        }
                     }
-                    Tab("Presupuesto", systemImage: "wallet.bifold", value: .Budgets){
-                        Budgets()
-                    }
-                    Tab("Nuevo", systemImage: "plus", value: .NewExpense){
-                        AddOrUpdateExpense()
-                    }
-                    Tab("Ajustes", systemImage:"gear", value: .Config){
-                        ConfigView()
-                    }
-                    Tab("Historial", systemImage:"magnifyingglass",value: .History, role: .search){
-                        History()
-                    }
+                    .environmentObject(tabSelection)
                 }
-                .globalBackground()
-                .environmentObject(tabSelection)
+                else{
+                    LoginView()
+                }
             }
         }
     }
@@ -125,4 +125,13 @@ enum CustomTabs: String, CaseIterable, Hashable {
 
 class TabSelection: ObservableObject {
     @Published var currentTab: CustomTabs = .Home
+}
+
+extension String {
+    func toLocalDate() -> Date {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+        return dateFormatter.date(from: self) ?? Date()
+    }
 }

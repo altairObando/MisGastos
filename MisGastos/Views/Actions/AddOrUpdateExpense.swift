@@ -8,11 +8,10 @@
 import SwiftUI
 import SwiftData
 import Combine
-
+import UIKit
 struct AddOrUpdateExpense: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var tabSelection: TabSelection
-    @EnvironmentObject var dataManager: ExpenseDataManager
     @State private var errMessage: String = "Ha ocurrido un error al guardar el registro"
     @State private var errShown: Bool = false;
     @State private var categories: [Category] = [];
@@ -25,6 +24,12 @@ struct AddOrUpdateExpense: View {
     @FocusState private var amountFocus : Bool;
     @FocusState private var noteFocus: Bool
     @State private var showIncomes = false;
+    
+    var filteredCategories: [Category] {
+        return categories.filter{ cat in
+            cat.isIncome == showIncomes
+        }
+    }
     
     var body: some View {
         VStack(alignment: .leading){
@@ -59,9 +64,7 @@ struct AddOrUpdateExpense: View {
                         GridItem(.flexible(minimum: 50, maximum: .infinity)),
                         GridItem(.flexible(minimum: 50, maximum: .infinity))
                     ], alignment: .leading, spacing: 8 ){
-                        ForEach(
-                            categories,
-                            id: \.id){ cat in
+                        ForEach( filteredCategories, id: \.id){ cat in
                             VStack(alignment: .center, spacing: 8 ){
                                 Image(systemName: cat.icon)
                                     .resizable()
@@ -124,56 +127,46 @@ struct AddOrUpdateExpense: View {
         .globalBackground()
     }
     func saveNewExpense(){
-        do {
-            if vm.amount <= 0 {
-                throw AppError.missingAmount
+        Task{
+            do {
+                if vm.amount <= 0 {
+                    throw AppError.missingAmount
+                }
+                if vm.category == nil {
+                    throw AppError.missingCategory
+                }
+                
+                let expense = Expense(
+                    id: UUID(),
+                    amount: vm.amount,
+                    title: vm.notas,
+                    date: vm.selectedDate,
+                    isRecurring: false,
+                    tags: [],
+                    categoryId: vm.category!.id,
+                    category: vm.category!,
+                )
+                _ = await ExpenseHelper.shared.create(expense);
+                vm.clearData()
+                withAnimation {
+                    tabSelection.currentTab = .Home;
+                }
+            } catch let error as AppError {
+                errMessage = error.description
+                errShown.toggle()
+            } catch {
+                errMessage = "Ha ocurrido un error al guardar el registro"
+                errShown.toggle()
             }
-            if vm.category == nil {
-                throw AppError.missingCategory
-            }
-            
-            let expense = Expense(
-                amount: vm.amount,
-                title: vm.notas,
-                date: vm.selectedDate,
-                category: vm.category!,
-            )
-            dataManager.addExpense(expense)
-            vm.clearData()
-            withAnimation {
-                tabSelection.currentTab = .Home;
-            }
-        } catch let error as AppError {
-            errMessage = error.description
-            errShown.toggle()
-        } catch {
-            errMessage = "Ha ocurrido un error al guardar el registro"
-            errShown.toggle()
         }
     }
     private func loadCategories() {
-        let descriptor = FetchDescriptor<Category>(
-            predicate: #Predicate { cat in
-                cat.isIncome == showIncomes
-            },
-            sortBy: [SortDescriptor(\.name)]
-        )
-        withAnimation{
-            do {
-                categories = try modelContext.fetch(descriptor)
-            } catch {
-                print("Error fetching categories: \(error)")
-                categories = []
-            }
+        Task {
+            let response = await CategoryHelper.shared.getAll()
+            categories = response;
         }
     }
 }
 #Preview {
     AddOrUpdateExpense()
-        .modelContainer(for: [Expense.self, Category.self], inMemory: true){ result in
-            switch result {
-                case .success( let container): setupDefaultData(container: container)
-                case .failure(let error): print(error.localizedDescription)
-            }
-        }
 }

@@ -6,10 +6,7 @@
 //
 
 import SwiftUI
-import SwiftData
-
 struct AddOrUpdateCategory: View {
-    @Environment(\.modelContext) private var modelContext;
     @Environment(\.dismiss) private var dismiss
     var cat: Category?
     @State private var name: String = String()
@@ -61,44 +58,41 @@ struct AddOrUpdateCategory: View {
                 .padding(.vertical, 10)
             }.foregroundStyle(.white)
             Button("Guardar", systemImage:"shippingbox.and.arrow.backward"){
-                if let category = cat{
-                    category.name = name
-                    category.icon = iconName
-                    category.isIncome = isIncome;
-                    category.isActive = isActive
-                } else {
-                    let newCategory = Category(name: name, icon: iconName, isIncome: isIncome)
-                    modelContext.insert(newCategory)
-                }
-                try? modelContext.save()
-                dismiss()
-            }.padding()
-            .foregroundStyle(.white)
-            .buttonStyle(.glassProminent)
-            Button("Eliminar", systemImage:"trash", role: .destructive){
-                
-            }.buttonStyle(.glass)
-                .foregroundStyle(.red)
-            if let category = cat {
-                Button{
-                    modelContext.delete(category)
-                    do{
-                        try modelContext.save()
-                    } catch{
-                        print(error.localizedDescription)
+                Task{
+                    if let existing = cat {
+                        let updatedCategory = Category(
+                            id: existing.id,
+                            name: name,
+                            icon: iconName,
+                            isActive: isActive,
+                            isIncome: isIncome
+                        )
+                        _ = await CategoryHelper.shared.update(updatedCategory)
+                    } else {
+                        let newCategory = Category(
+                            id: UUID(),
+                            name: name,
+                            icon: iconName,
+                            isActive: isActive,
+                            isIncome: isIncome
+                        )
+                        _ = await CategoryHelper.shared.create(newCategory)
                     }
                     dismiss()
                 }
-                label:{
-                    HStack{
-                        Text("Eliminar")
-                        Spacer()
-                        Image(systemName:"trash")
-                    }.foregroundStyle(.white)
-                    .padding()
-                    .background(RoundedRectangle(cornerRadius: 16))
-                        
-                }
+            }.padding()
+            .foregroundStyle(.white)
+            .buttonStyle(.glassProminent)
+            if let category = cat {
+                Button("Eliminar \( category.name )", systemImage:"trash", role: .destructive){
+                    Task{
+                        if let existing = cat {
+                            _ = await CategoryHelper.shared.delete(existing.id)
+                        }
+                        dismiss()
+                    }
+                }.buttonStyle(.glass)
+                    .foregroundStyle(.red)
             }
             
         }.globalBackground()

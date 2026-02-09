@@ -11,88 +11,26 @@ import SwiftData
 struct History: View {
     @State private var searchText: String = String();
     @State private var expenses: [TimeExpense] = [];
-    @State private var selectedPeriod: TimePeriod = .thisWeek
+    @State private var selectedPeriod: TimePeriod = .thisMonth;
     @State private var categories: [Category] = []
     @State private var category: Category?
+    @State private var loading = false;
     @AppStorage("currencyCode") private var currencyCode: String = "NIO"
     var body: some View {
         NavigationStack{
             VStack{
-                HStack{
-                    Text("Historial de Transacciones")
-                        .font(.headline)
+                HistoryTitle()
+                HistoryFilter(
+                    selectedPeriod: $selectedPeriod,
+                    categories: $categories,
+                    category: $category
+                )
+                if loading {
+                    ProgressView("Cargando...")
+                        .padding()
                     Spacer()
-                    Image(systemName: "calendar")
-                }.padding()
-                HStack{
-                    Menu{
-                        ForEach(TimePeriod.allCases, id: \.self){ option in
-                            Button(option.rawValue){
-                                selectedPeriod = option
-                            }
-                        }
-                    }
-                    label: {
-                        HStack{
-                            Text(selectedPeriod.rawValue)
-                                .font(.headline)
-                            Image(systemName: "calendar")
-                        }.frame(width: 150)
-                    }.padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Color(.systemGray6).opacity(0.2))
-                    )
-                    Menu {
-                        Button("Todas"){
-                            category = nil
-                        }
-                        ForEach(categories){ cat in
-                            Button(cat.name, systemImage: cat.isIncome ? "arrowshape.up": "arrowshape.down"){
-                                category = cat
-                            }
-                        }
-                    } label: {
-                        HStack{
-                            Text(category?.name ?? "Todas")
-                                .font(.headline)
-                            Image(systemName: "shippingbox")
-                        }.frame(width: 130)
-                    }.padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Color(.systemGray6).opacity(0.2))
-                    )
-                }.padding(.vertical)
-                List(expenses){ cat in
-                    Section(formatDate(cat.date)){
-                        ForEach(cat.expenses) { expense in
-                            HStack {
-                                Image(systemName: expense.category.icon)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: 24, height: 24)
-                                    .padding(12)
-                                    .background(Color.gray.opacity(0.3))
-                                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                                VStack(alignment: .leading){
-                                    Text(expense.category.name)
-                                        .font(.subheadline)
-                                    Text(expense.title)
-                                        .font(.footnote)
-                                }
-                                Spacer()
-                                Text(expense.amount, format: .currency(code: currencyCode))
-                                    .foregroundStyle( expense.category.isIncome ? .green : .red  )
-                            }
-                            .listRowBackground(Color.gray.opacity(0.3))
-                        }
-                    }
-                }.scrollContentBackground(.hidden)
-                .overlay{
-                    if expenses.isEmpty {
-                        ContentUnavailableView("No hay datos registrados", systemImage: "tray.fill")
-                    }
+                }else {
+                    ExpensesList(expenses: expenses, onRefresh: filterExpenses)
                 }
             }
             .onAppear(perform: filterExpenses)
@@ -117,20 +55,18 @@ struct History: View {
     }
     func filterExpenses(){
         Task {
+            loading = true
             let range = selectedPeriod.dateRange;
             let startDate = range.start.startOfDay;
             let endDate   = range.end.endOfDay;
-            do{
-                let tempExpenses = await ExpenseHelper.shared.filterExpenses(
-                    start: startDate,
-                    end: endDate,
-                    text: searchText,
-                    catId: category?.id?.uuidString
-                )
-                expenses = tempExpenses
-            } catch{
-                print("Error getting expenses")
-            }
+            let tempExpenses = await ExpenseHelper.shared.filterExpenses(
+                start: startDate,
+                end: endDate,
+                text: searchText,
+                catId: category?.id.uuidString
+            )
+            expenses = tempExpenses
+            loading = false
         }
     }
     func loadCategories(){
@@ -153,5 +89,126 @@ extension Date {
 
     var endOfDay: Date {
         Calendar.current.date(bySettingHour: 23, minute: 59, second: 59, of: self)!
+    }
+}
+
+struct HistoryTitle: View {
+    var body: some View {
+        HStack{
+            Text("Historial de Transacciones")
+                .font(.headline)
+            Spacer()
+            Image(systemName: "calendar")
+        }.padding()
+    }
+}
+
+struct HistoryFilter: View {
+    @Binding var selectedPeriod: TimePeriod
+    @Binding var categories: [Category];
+    @Binding var category: Category?
+    
+    var body: some View {
+        HStack{
+            Menu{
+                ForEach(TimePeriod.allCases, id: \.self){ option in
+                    Button(option.rawValue){
+                        selectedPeriod = option
+                    }
+                }
+            }
+            label: {
+                HStack{
+                    Text(selectedPeriod.rawValue)
+                        .font(.headline)
+                    Image(systemName: "calendar")
+                }.frame(width: 150)
+            }.padding()
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(.systemGray6).opacity(0.2))
+            )
+            Menu {
+                Button("Todas"){
+                    category = nil
+                }
+                ForEach(categories){ cat in
+                    Button(cat.name, systemImage: cat.isIncome ? "arrowshape.up": "arrowshape.down"){
+                        category = cat
+                    }
+                }
+            } label: {
+                HStack{
+                    Text(category?.name ?? "Todas")
+                        .font(.headline)
+                    Image(systemName: "shippingbox")
+                }.frame(width: 130)
+            }.padding()
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(.systemGray6).opacity(0.2))
+            )
+        }.padding(.vertical)
+    }
+}
+
+struct ExpensesList: View{
+    var expenses: [TimeExpense];
+    var onRefresh: (() -> Void)? = nil;
+    var body: some View{
+        List(expenses){ cat in
+            Section(formatDate(cat.date)){
+                ForEach(cat.expenses) { expense in
+                    ExpenseListItem(expense: expense)
+                    .listRowBackground(Color.gray.opacity(0.3))
+                }
+            }
+        }
+        .refreshable {
+            onRefresh?()
+        }
+        .scrollContentBackground(.hidden)
+        .overlay{
+            if expenses.isEmpty {
+                ContentUnavailableView("No hay datos registrados", systemImage: "tray.fill")
+            }
+        }
+    }
+}
+
+struct ExpenseListItem: View {
+    @AppStorage("currencyCode") private var currencyCode: String = "NIO";
+    var expense: Expense;
+    var body: some View {
+        HStack {
+            if let category = expense.category {
+                Image(systemName: category.icon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 24, height: 24)
+                    .padding(12)
+                    .background(Color.gray.opacity(0.3))
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+            }else{
+                Image(systemName: "shippingbox")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 24, height: 24)
+                    .padding(12)
+                    .background(Color.gray.opacity(0.3))
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+            }
+            VStack(alignment: .leading){
+                if let category = expense.category {
+                    Text(category.name)
+                        .font(.subheadline)
+                }
+                Text(expense.title)
+                    .font(.footnote)
+            }
+            Spacer()
+            Text(expense.amount, format: .currency(code: currencyCode))
+                .foregroundStyle( (expense.category?.isIncome ?? false) ? .green : .red)
+        }
     }
 }

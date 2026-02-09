@@ -6,16 +6,15 @@
 //
 
 import SwiftUI
-import SwiftData
-
+import Supabase
 struct BudgetsView: View {
-    @AppStorage("currencyCode") private var currencyCode: String = "NIO"
-    
-    @State private var allActiveBudgets: [Budget] = [];
+    @AppStorage("currencyCode") private var currencyCode: String = "NIO"    
+    @State private var allActiveBudgets: [BudgetWithTotals] = [];
     @State private var showNewItem = false;
     @State private var showOptions = true;
-    @State private var selected: Budget? = nil;
+    @State private var selected: BudgetWithTotals? = nil;
     @State private var budgetId: UUID = UUID();
+    @State private var loading = false;
 
     let thresholds: [(threshold: Double, color: Color, label: String)] = [
         (0.5, .green, "Dentro del presupuesto"),
@@ -23,20 +22,20 @@ struct BudgetsView: View {
         (0.9, .orange, "Superando presupuesto"),
         (1.0, .red, "Presupuesto excedido")
     ]
-    var budgets: [Budget] {
+    var budgets: [BudgetWithTotals] {
         let today = Date()
         return allActiveBudgets.filter { b in
-            b.startDate.startOfDay >= today.startOfDay && b.startDate.endOfDay <= today.endOfDay
+            b.startDate.startOfDay <= today.startOfDay && b.startDate.endOfDay <= today.endOfDay
         }
     }
 
     var totalBudget: Double {
-        budgets.reduce(0.0) { (initial: Double, next: Budget) in
+        budgets.reduce(0.0) { (initial: Double, next: BudgetWithTotals) in
             initial + next.amount
         }
     }
     var totalExpense: Double {
-        budgets.reduce(0.0) { (initial: Double, next: Budget) in
+        budgets.reduce(0.0) { (initial: Double, next: BudgetWithTotals) in
             initial + next.totalSpent
         }
     }
@@ -88,10 +87,12 @@ struct BudgetsView: View {
                         ForEach(budgets){ bud in
                             BudgetItem(
                                 bud: bud,
-                                fColor: getCurrentColor(bud.consumedPercentage),
+                                fColor: getCurrentColor(0.0),
                                 thresholds: thresholds,
                                 callBack: onBudgetPress
                             )
+                        }.refreshable {
+                            getActiveBudgets()
                         }
                     }
                 }.padding(.horizontal)
@@ -100,6 +101,9 @@ struct BudgetsView: View {
             .globalBackground()
             .toolbarColorScheme(.dark, for: .navigationBar)
             .overlay{
+                if loading{
+                    ProgressView()
+                }
                 if budgets.isEmpty{
                     ContentUnavailableView("Sin Registros", systemImage: "wallet.bifold.fill")
                         .globalBackground()
@@ -115,10 +119,11 @@ struct BudgetsView: View {
                 }
             }
             .navigationDestination(isPresented: $showNewItem){
-                AddOrUpdateBudget(budget: selected)
+                AddOrUpdateBudget(budgetId: selected?.id )
             }
             .onAppear{
                 selected = nil
+                getActiveBudgets();
             }
         }
         .toolbarColorScheme(.dark, for: .navigationBar)
@@ -131,19 +136,33 @@ struct BudgetsView: View {
         }
         return thresholds.last?.color ?? .blue
     }
-    func onBudgetPress(_ budget: Budget, action: BudgetAction){
+    func onBudgetPress(_ budget: BudgetWithTotals, action: BudgetAction){
         selected = nil;
         switch action {
             case .archive:
-                budget.isActive = false;
+                deactivateBudget( budget )
             case .detail:
                 selected = budget;
                 showNewItem.toggle()
             case .delete:
-                print("DELEEETE")
-                //modelContext.delete(budget);
+                Task{
+                    _ = await BudgetHelper.shared.delete(budget.id)
+                    getActiveBudgets()
+                }
             case .cancel:
                 print("Action Cancelled")
+        }
+    }
+    func deactivateBudget(_ budget: BudgetWithTotals){
+        Task{
+            await BudgetHelper.shared.setBudgetActive(budget.id, active: false)
+        }
+    }    
+    func getActiveBudgets(){
+        Task {
+            loading = true
+            allActiveBudgets = await BudgetHelper.shared.getAllWithTotalsByCategory();
+            loading = false;
         }
     }
 }

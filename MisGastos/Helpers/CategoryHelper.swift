@@ -4,13 +4,12 @@ import Supabase
 
 class CategoryHelper {
     static let shared = CategoryHelper()
-    private let userId = UIDevice.current.identifierForVendor?.uuidString;
     private let client = SupabaseClient.shared.client;
     private init() {}
 
     func getAll() async -> [Category] {
         do {
-            return try await client.from("Category").select().eq("userId", value: userId).execute().value
+            return try await client.from("Category").select().execute().value
         } catch {
             print(error.localizedDescription)
             return []
@@ -19,7 +18,7 @@ class CategoryHelper {
 
     func getById(_ id: UUID) async -> Category? {
         do {
-            let items: [Category] = try await client.from("Category").select().eq("userId", value: userId).eq("id", value: id).execute().value
+            let items: [Category] = try await client.from("Category").select().eq("id", value: id).execute().value
             return items.first
         } catch {
             print(error.localizedDescription)
@@ -61,7 +60,6 @@ class CategoryHelper {
         do{
             let result: ExpenseByCategoryDTO = try await client.from("Expense")
                 .select("SUM(amount) AS total")
-                .eq("userId", value: userId)
                 .eq("categoryId", value: categoryId.uuidString)
                 .single()
                 .execute()

@@ -8,12 +8,12 @@ import SwiftUI
 
 struct BudgetItem: View {
     @State private var showOptions : Bool = false;
+    
     @AppStorage("currencyCode") private var currencyCode: String = "NIO"
-    var bud: Budget
+    var bud: BudgetWithTotals
     var fColor: Color
     var thresholds: [(threshold: Double, color: Color, label: String)];
-    var callBack: ((_ budget: Budget, _ action: BudgetAction)-> Void)?
-    
+    var callBack: ((_ budget: BudgetWithTotals, _ action: BudgetAction)-> Void)?
     var body: some View {
         ZStack{
             RoundedRectangle(cornerRadius: 16)
@@ -21,7 +21,7 @@ struct BudgetItem: View {
                 .shadow( color: .bgColorLigth.opacity(0.2),radius: 5,x: 0,y: 3)
             VStack(alignment: .leading, spacing: 10 ){
                 HStack {
-                    Image(systemName: bud.category.icon)
+                    Image(systemName: bud.category?.icon ?? "shippingbox")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 24, height: 24)
@@ -30,7 +30,7 @@ struct BudgetItem: View {
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                         .foregroundStyle(fColor)
                     VStack(alignment: .leading){
-                        Text(bud.category.name)
+                        Text(bud.category?.name ?? "Ninguna")
                             .font(.title3.bold())
                         HStack{
                             Text("Quedan")
@@ -39,12 +39,12 @@ struct BudgetItem: View {
                     }
                     Spacer()
                     VStack(alignment: .trailing){
-                        Text(bud.category.totalSpent,format: .currency(code: currencyCode)).font(.title3.bold())
+                        Text(bud.totalSpent,format: .currency(code: currencyCode)).font(.title3.bold())
                         Text(bud.amount,format: .currency(code: currencyCode)).font(.footnote)
                     }
                 }
                 CustomProgressBar(
-                    progress: bud.consumedPercentage,
+                    progress: bud.consumed,
                     height: 10,
                     cornerRadius: 10,
                     showPercentage: true,

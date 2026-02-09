@@ -11,6 +11,7 @@ struct CategoryItem: View {
     var cat: Category
     var onEdit: (_ category: Category) -> Void
     var onDelete: (_ category: Category) -> Void
+    @State private var totalSpent = 0.0
     var body: some View {
         HStack(alignment: .center, spacing: 10){
             Image(systemName: cat.icon)
@@ -25,7 +26,7 @@ struct CategoryItem: View {
                     .font(.headline)
                 HStack(spacing: 5){
                     Text("Has Gastado")
-                    Text(cat.totalSpent, format: .currency(code: "NIO"))
+                    Text(totalSpent, format: .currency(code: "NIO"))
                 }.font(.subheadline)
             }
             Spacer()
@@ -50,6 +51,12 @@ struct CategoryItem: View {
             } label:{
                 Image(systemName:"trash")
             }.tint(.red)
+        }
+        .task{
+            let spent = await CategoryHelper.shared.totalExpenseByCategory(cat.id)
+            withAnimation{
+                totalSpent = spent;
+            }
         }
     }
 }

@@ -6,14 +6,12 @@
 //
 
 import SwiftUI
-import SwiftData
 
 struct AddOrUpdateBudget: View {
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dissmiss
-    var budget: Budget?
-    
-    @Query private var categories: [Category]
+    var budgetId: UUID?
+    @State private var budget: Budget?
+    @State private var categories: [Category] = [];
     @State private var id: UUID = UUID()
     @State private var name = String();
     @State private var amount : Double = 0.0;
@@ -139,6 +137,9 @@ struct AddOrUpdateBudget: View {
             .background(Color.bgColorLigth)
             .foregroundColor(.white)
             .cornerRadius(8)
+            .onAppear{
+                fetchCategories()
+            }
         }
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
@@ -157,63 +158,78 @@ struct AddOrUpdateBudget: View {
         .globalBackground()
         .foregroundStyle(.white)
         .onAppear{
-            if let bud = budget {
-                id = bud.id;
-                name = bud.name;
-                amount = bud.amount
-                period = bud.period
-                start = bud.startDate
-                category = bud.category
+            Task{
+                guard let itemId = budgetId else {
+                    return;
+                }
+                let response = await BudgetHelper.shared.getById(itemId)
+                if let bud = response {
+                    id = bud.id;
+                    name = bud.name;
+                    amount = bud.amount
+                    period = bud.period
+                    start = bud.startDate
+                    active = bud.isActive
+                    category = bud.category
+                }
             }
+            
         }
     }
     func addUpdateBudget(){
-        do{
-            alertMessage = String()
-            if name.isEmpty {
-                throw AppError.missingAmount
+        Task{
+            do{
+                alertMessage = String()
+                if name.isEmpty {
+                    throw AppError.missingAmount
+                }
+                if amount <= 0 {
+                    throw AppError.missingAmount
+                }
+                if category == nil {
+                    throw AppError.missingCategory
+                }
+
+                var completed = false
+                if let _ = budgetId {
+                    let updated = Budget(name: name, amount: amount, period: period, category: category!)
+                    updated.id = id
+                    updated.startDate = start
+                    updated.endDate = endDate
+                    updated.isActive = active
+                    completed = await BudgetHelper.shared.update(updated)
+                } else {
+                    let newBudget = Budget(name: name, amount: amount, period: period, category: category!)
+                    newBudget.id = id
+                    newBudget.startDate = start
+                    newBudget.endDate = endDate
+                    newBudget.isActive = true
+                    
+                    completed = await BudgetHelper.shared.create(newBudget)
+                }
+                if !completed {
+                    throw AppError.errorOnCreateBudget
+                }
+                dissmiss()
+            } catch let error as AppError {
+                alertMessage = error.description;
+            } catch {
+                alertMessage = "Error no identificado."
             }
-            if amount <= 0 {
-                throw AppError.missingAmount
+            if !alertMessage.isEmpty {
+                showAlert.toggle()
             }
-            if category == nil {
-                throw AppError.missingCategory
-            }
-            if let bud = budget{
-                bud.name = name
-                bud.amount = amount
-                bud.startDate = start
-                bud.endDate = endDate
-                bud.period = period
-                bud.category = category!
-            }else {
-                let newBudget = Budget(
-                    name: name,
-                    amount: amount,
-                    period: period,
-                    category: category!
-                )
-                modelContext.insert(newBudget)
-            }
-            try modelContext.save()
-            dissmiss()
-        } catch let error as AppError {
-            alertMessage = error.description;
-        } catch {
-            alertMessage = "Error no identificado."
         }
-        if !alertMessage.isEmpty {
-            showAlert.toggle()
+    }
+    func fetchCategories(){
+        Task{
+            let cats = await CategoryHelper.shared.getAll()
+            categories = cats.filter{ cat in cat.isActive }
         }
     }
 }
 
 #Preview {
-    AddOrUpdateBudget().modelContainer(for: [Expense.self, Category.self], inMemory: true){ result in
-        switch result {
-            case .success( let container): setupDefaultData(container: container)
-            case .failure(let error): print(error.localizedDescription)
-        }
-    }
+    AddOrUpdateBudget()
 }
 
